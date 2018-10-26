@@ -18,6 +18,43 @@ metadata:
     release: datadog
   name: datadog-kube-state-metrics
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: datadog-datadog
+    chart: datadog-1.9.1
+    heritage: Tiller
+    release: datadog
+  name: datadog-datadog
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - events
+  - endpoints
+  - pods
+  - nodes
+  - componentstatuses
+  verbs:
+  - get
+  - list
+  - watch
+- nonResourceURLs:
+  - /version
+  - /healthz
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - nodes/metrics
+  - nodes/spec
+  - nodes/proxy
+  verbs:
+  - get
+---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRole
 metadata:
@@ -148,61 +185,6 @@ rules:
   - list
   - watch
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app: datadog-datadog
-    chart: datadog-1.9.1
-    heritage: Tiller
-    release: datadog
-  name: datadog-datadog
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - services
-  - events
-  - endpoints
-  - pods
-  - nodes
-  - componentstatuses
-  verbs:
-  - get
-  - list
-  - watch
-- nonResourceURLs:
-  - /version
-  - /healthz
-  verbs:
-  - get
-- apiGroups:
-  - ""
-  resources:
-  - nodes/metrics
-  - nodes/spec
-  - nodes/proxy
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    app: datadog-datadog
-    chart: datadog-1.9.1
-    heritage: Tiller
-    release: datadog
-  name: datadog-datadog
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: datadog-datadog
-subjects:
-- kind: ServiceAccount
-  name: datadog-datadog
-  namespace: default
----
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
@@ -219,6 +201,24 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: datadog-kube-state-metrics
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app: datadog-datadog
+    chart: datadog-1.9.1
+    heritage: Tiller
+    release: datadog
+  name: datadog-datadog
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: datadog-datadog
+subjects:
+- kind: ServiceAccount
+  name: datadog-datadog
   namespace: default
 ---
 apiVersion: v1
