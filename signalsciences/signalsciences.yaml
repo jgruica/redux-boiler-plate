@@ -19,7 +19,7 @@ metadata:
   labels:
     app: signalsciences-signalsciences
     chart: signalsciences-0.0.1
-    heritage: Tiller
+    heritage: Tillerer
     release: signalsciences
   name: signalsciences-signalsciences-secretaccesskey
 type: Opaque
