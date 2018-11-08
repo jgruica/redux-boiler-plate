@@ -1,0 +1,77 @@
+apiVersion: v1
+data:
+  accessKeyId: YjQ4NGFhOWItODg0NC00MzdhLWJiNTktNTBmZmJkYmYzOGU5
+kind: Secret
+metadata:
+  labels:
+    app: signalsciences-signalsciences
+    chart: signalsciences-0.0.1
+    heritage: Tiller
+    release: signalsciences
+  name: signalsciences-signalsciences-accesskeyid
+type: Opaque
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  creationTimestamp: null
+  name: sigsci-secretaccesskey
+  namespace: default
+spec:
+  encryptedData:
+    secretAccessKey: AgC/MuMPrDvixqe8u+ecJR/Kwyf01rqejcnW/fazjdwaF3mHcpqI621KoCATUnvTm1bSyDRp6z6WRD2wSMVfO+GY3yCc7PM7g4PKhRe7+1eVuyJi14o2qAmxiKK/DTPWj7wIuhrQcMwiWfe9DXQLU5FbgIG3VlZjneqnFYri+7fqJQ9ua2ZDsViu3DBfpUZMCAF8zEVo+jJczGdJg/NGlUL29mNU06b5GFxIzjq+9PKbdOnWhqpyjLDH04e1MYX/FC4/lYe6Ig7VwWjXeShV9/NwTUBFOa9Qvz/jybfQzcTfeBletgbDS3dPZVht/r6grk9JpOxSVv2nVjdOvtUEdaUMMIInlpReoqLJDsYUrT0P/RWaBPKq2lz2m/x/t8sBegMLs4TREAh5GPcTvpI6szWdU/NH7PODKbl6SqDxG7edx7rR8x8L2+NB/UFTV7XkhV39Frl0qH+cpvgfAh8hVwChKuW3uYc/wB3pubYlJhg0CE1xMJW7S8OhEoYkAOl1kbRtvtBpeoNHHmwRwaJlhinbJE/j6puspdKIcFci/KVkpMoW38pMbEhYFnxNeMkpAwT+NfeQxpft3/rENfoK+rHexvipfGkpxX9/3JR8ML5aUp81rUl3DDnYo3lZM9EU6WOx7EQGwcVQC9sNx5AOnwmxWUcAN+mHchu451Nbfl3IMzsCjp2g2iYriQfN0/6O1KrHImYEtg3OzFPbR4qe8xGr6yR/G7kyM9sI/zeRCmxnyQ2iWhyfSm+Sbf6h
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  labels:
+    app: signalsciences
+    chart: signalsciences-0.0.1
+    heritage: Tiller
+    release: signalsciences
+  name: signalsciences-signalsciences
+spec:
+  template:
+    metadata:
+      labels:
+        app: signalsciences
+        release: signalsciences
+    spec:
+      containers:
+      - env:
+        - name: SIGSCI_RPC_ADDRESS
+          value: unix:/var/run/sigsci/sigsci.sock
+        - name: SIGSCI_HOSTNAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: SIGSCI_SECRETACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              key: secretAccessKey
+              name: sigsci-secretaccesskey
+        - name: SIGSCI_ACCESSKEYID
+          valueFrom:
+            secretKeyRef:
+              key: accessKeyId
+              name: signalsciences-signalsciences-accesskeyid
+        image: marc/sigsci-agent:3.12.1
+        imagePullPolicy: IfNotPresent
+        name: sigsci-agent
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /var/run/sigsci
+          name: var-run
+          readOnly: false
+      volumes:
+      - hostPath:
+          path: /var/run/sigsci
+        name: var-run
+  updateStrategy:
+    type: RollingUpdate
