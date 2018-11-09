@@ -3,7 +3,7 @@ kind: ServiceAccount
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -13,7 +13,7 @@ kind: Role
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -32,7 +32,7 @@ kind: ClusterRole
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana-clusterrole
@@ -43,7 +43,7 @@ kind: RoleBinding
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -60,7 +60,7 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana-clusterrolebinding
@@ -91,21 +91,21 @@ kind: ConfigMap
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
 ---
 apiVersion: v1
 data:
-  admin-password: alZ6dmlEOWQyWmhqZUhiT2NzYm8yaktXQmxUZldUYzlLOWV2cGlJdg==
+  admin-password: QWJoTk5Ga0J6UkFWVE1FUW1BNGtNRjcwVnM4bHI0d2ZlMXZ3SUdhYw==
   admin-user: YWRtaW4=
   ldap-toml: ""
 kind: Secret
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -116,7 +116,7 @@ kind: Service
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -136,7 +136,7 @@ kind: Deployment
 metadata:
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
@@ -225,7 +225,7 @@ metadata:
     seccomp.security.alpha.kubernetes.io/defaultProfileName: docker/default
   labels:
     app: grafana
-    chart: grafana-1.17.4
+    chart: grafana-1.17.5
     heritage: Tiller
     release: grafana
   name: grafana
