@@ -262,7 +262,7 @@ metadata:
   labels:
     app: kube-state-metrics
     chart: kube-state-metrics-0.9.1
-    heritage: Tillerr
+    heritage: Tillerrrrr
     release: datadog
   name: datadog-kube-state-metrics
 spec:
