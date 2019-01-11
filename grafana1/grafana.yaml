@@ -86,7 +86,7 @@ metadata:
 ---
 apiVersion: v1
 data:
-  admin-password: WXUwbGpxZTdSVjhSN1ppQ2JRdEVObjVRN0ozejg2akd3cnV1N2FuMA==
+  admin-password: Nlkxc2hteHBuYUNpQXE0WTdWd2VvRDZhV09DSndaeThjNkhzTEFpUw==
   admin-user: YWRtaW4=
   ldap-toml: ""
 kind: Secret
@@ -218,7 +218,18 @@ spec:
   privileged: false
   readOnlyRootFilesystem: false
   requiredDropCapabilities:
-  - ALL
+  - FOWNER
+  - FSETID
+  - KILL
+  - SETGID
+  - SETUID
+  - SETPCAP
+  - NET_BIND_SERVICE
+  - NET_RAW
+  - SYS_CHROOT
+  - MKNOD
+  - AUDIT_WRITE
+  - SETFCAP
   runAsUser:
     rule: RunAsAny
   seLinux:
