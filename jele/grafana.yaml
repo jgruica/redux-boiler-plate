@@ -46,6 +46,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: grafana
+  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -86,7 +87,7 @@ metadata:
 ---
 apiVersion: v1
 data:
-  admin-password: TW5YdTlvOEFQT0QwOWpoeDlucVF0WGRscWRGMGE2OHRUS0l5UmpzaQ==
+  admin-password: SjNodW83TGxxVkZoUktBOUJ5ak9DZVFYamU5VjVmbTlFa1FoREpRcA==
   admin-user: YWRtaW4=
   ldap-toml: ""
 kind: Secret
