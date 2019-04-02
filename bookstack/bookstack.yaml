@@ -96,8 +96,8 @@ metadata:
 ---
 apiVersion: v1
 data:
-  mariadb-password: Ymc1M1k2VjhRMA==
-  mariadb-root-password: SUZpT3d5VWc0dA==
+  mariadb-password: RDdVaU0zN3NJVw==
+  mariadb-root-password: TzQ2Vm91OGhybg==
 kind: Secret
 metadata:
   labels:
@@ -194,7 +194,7 @@ spec:
         volumeMounts:
         - mountPath: /var/www/bookstack/public/uploads
           name: uploads
-        - mountPath: /var/www/bookstack/public/storage
+        - mountPath: /var/www/bookstack/storage/uploads
           name: storage
       serviceAccountName: bookstack
       volumes:
@@ -335,7 +335,7 @@ kind: Pod
 metadata:
   annotations:
     helm.sh/hook: test-success
-  name: bookstack-mariadb-test-fnax9
+  name: bookstack-mariadb-test-c0zrg
 spec:
   containers:
   - command:
