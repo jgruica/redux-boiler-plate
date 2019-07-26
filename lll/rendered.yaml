@@ -1,0 +1,1018 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: cloudserver
+    component: localdata
+    release: cloudserver
+  name: cloudserver-localdata
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  name: cloudserver
+---
+apiVersion: v1
+data:
+  on-start.sh: |
+    #!/usr/bin/env bash
+
+    # Copyright 2018 The Kubernetes Authors. All rights reserved.
+    #
+    # Licensed under the Apache License, Version 2.0 (the "License");
+    # you may not use this file except in compliance with the License.
+    # You may obtain a copy of the License at
+    #
+    #     http://www.apache.org/licenses/LICENSE-2.0
+    #
+    # Unless required by applicable law or agreed to in writing, software
+    # distributed under the License is distributed on an "AS IS" BASIS,
+    # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    # See the License for the specific language governing permissions and
+    # limitations under the License.
+
+    set -e pipefail
+
+    replica_set="$REPLICA_SET"
+    script_name=${0##*/}
+    SECONDS=0
+    timeout=300
+
+    if [[ "$AUTH" == "true" ]]; then
+        admin_user="$ADMIN_USER"
+        admin_password="$ADMIN_PASSWORD"
+        admin_creds=(-u "$admin_user" -p "$admin_password")
+        if [[ "$METRICS" == "true" ]]; then
+            metrics_user="$METRICS_USER"
+            metrics_password="$METRICS_PASSWORD"
+        fi
+        auth_args=("--auth" "--keyFile=/data/configdb/key.txt")
+    fi
+
+    log() {
+        local msg="$1"
+        local timestamp
+        timestamp=$(date --iso-8601=ns)
+        echo "[$timestamp] [$script_name] $msg" 2>&1 | tee -a /work-dir/log.txt 1>&2
+    }
+
+    retry_until() {
+        local host="${1}"
+        local command="${2}"
+        local expected="${3}"
+        local creds=("${admin_creds[@]}")
+
+        # Don't need credentials for admin user creation and pings that run on localhost
+        if [[ "${host}" =~ ^localhost ]]; then
+            creds=()
+        fi
+
+        until [[ $(mongo admin --host "${host}" "${creds[@]}" "${ssl_args[@]}" --quiet --eval "${command}") == "${expected}" ]]; do
+            sleep 1
+
+            if (! ps "${pid}" &>/dev/null); then
+                log "mongod shutdown unexpectedly"
+                exit 1
+            fi
+            if [[ "${SECONDS}" -ge "${timeout}" ]]; then
+                log "Timed out after ${timeout}s attempting to bootstrap mongod"
+                exit 1
+            fi
+
+            log "Retrying ${command} on ${host}"
+        done
+    }
+
+    shutdown_mongo() {
+        local host="${1:-localhost}"
+        local args='force: true'
+        log "Shutting down MongoDB ($args)..."
+        if (! mongo admin --host "${host}" "${admin_creds[@]}" "${ssl_args[@]}" --eval "db.shutdownServer({$args})"); then
+          log "db.shutdownServer() failed, sending the terminate signal"
+          kill -TERM "${pid}"
+        fi
+    }
+
+    init_mongod_standalone() {
+        if [[ ! -f /init/initMongodStandalone.js ]]; then
+            log "Skipping init mongod standalone script"
+            return 0
+        elif [[ -z "$(ls -1A /data/db)" ]]; then
+            log "mongod standalone script currently not supported on initial install"
+            return 0
+        fi
+
+        local port="27018"
+        log "Starting a MongoDB instance as standalone..."
+        mongod --config /data/configdb/mongod.conf --dbpath=/data/db "${auth_args[@]}" --port "${port}" --bind_ip=0.0.0.0 2>&1 | tee -a /work-dir/log.txt 1>&2 &
+        export pid=$!
+        trap shutdown_mongo EXIT
+        log "Waiting for MongoDB to be ready..."
+        retry_until "localhost:${port}" "db.adminCommand('ping').ok" "1"
+        log "Running init js script on standalone mongod"
+        mongo admin --port "${port}" "${admin_creds[@]}" "${ssl_args[@]}" /init/initMongodStandalone.js
+        shutdown_mongo "localhost:${port}"
+    }
+
+    my_hostname=$(hostname)
+    log "Bootstrapping MongoDB replica set member: $my_hostname"
+
+    log "Reading standard input..."
+    while read -ra line; do
+        if [[ "${line}" == *"${my_hostname}"* ]]; then
+            service_name="$line"
+        fi
+        peers=("${peers[@]}" "$line")
+    done
+
+    # Generate the ca cert
+    ca_crt=/data/configdb/tls.crt
+    if [ -f "$ca_crt"  ]; then
+        log "Generating certificate"
+        ca_key=/data/configdb/tls.key
+        pem=/work-dir/mongo.pem
+        ssl_args=(--ssl --sslCAFile "$ca_crt" --sslPEMKeyFile "$pem")
+
+    # Move into /work-dir
+    pushd /work-dir
+
+    cat >openssl.cnf <<EOL
+    [req]
+    req_extensions = v3_req
+    distinguished_name = req_distinguished_name
+    [req_distinguished_name]
+    [ v3_req ]
+    basicConstraints = CA:FALSE
+    keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+    subjectAltName = @alt_names
+    [alt_names]
+    DNS.1 = $(echo -n "$my_hostname" | sed s/-[0-9]*$//)
+    DNS.2 = $my_hostname
+    DNS.3 = $service_name
+    DNS.4 = localhost
+    DNS.5 = 127.0.0.1
+    EOL
+
+        # Generate the certs
+        openssl genrsa -out mongo.key 2048
+        openssl req -new -key mongo.key -out mongo.csr -subj "/OU=MongoDB/CN=$my_hostname" -config openssl.cnf
+        openssl x509 -req -in mongo.csr \
+            -CA "$ca_crt" -CAkey "$ca_key" -CAcreateserial \
+            -out mongo.crt -days 3650 -extensions v3_req -extfile openssl.cnf
+
+        rm mongo.csr
+        cat mongo.crt mongo.key > $pem
+        rm mongo.key mongo.crt
+    fi
+
+    init_mongod_standalone
+
+    log "Peers: ${peers[*]}"
+    log "Starting a MongoDB replica"
+    mongod --config /data/configdb/mongod.conf --dbpath=/data/db --replSet="$replica_set" --port=27017 "${auth_args[@]}" --bind_ip=0.0.0.0 2>&1 | tee -a /work-dir/log.txt 1>&2 &
+    pid=$!
+    trap shutdown_mongo EXIT
+
+    log "Waiting for MongoDB to be ready..."
+    retry_until "localhost" "db.adminCommand('ping').ok" "1"
+    log "Initialized."
+
+    # try to find a master
+    for peer in "${peers[@]}"; do
+        log "Checking if ${peer} is primary"
+        # Check rs.status() first since it could be in primary catch up mode which db.isMaster() doesn't show
+        if [[ $(mongo admin --host "${peer}" "${admin_creds[@]}" "${ssl_args[@]}" --quiet --eval "rs.status().myState") == "1" ]]; then
+            retry_until "${peer}" "db.isMaster().ismaster" "true"
+            log "Found primary: ${peer}"
+            primary="${peer}"
+            break
+        fi
+    done
+
+    if [[ "${primary}" = "${service_name}" ]]; then
+        log "This replica is already PRIMARY"
+    elif [[ -n "${primary}" ]]; then
+        log "Adding myself (${service_name}) to replica set..."
+        if (mongo admin --host "${primary}" "${admin_creds[@]}" "${ssl_args[@]}" --eval "rs.add('${service_name}')" | grep 'Quorum check failed'); then
+            log 'Quorum check failed, unable to join replicaset. Exiting prematurely.'
+            exit 1
+        fi
+
+        sleep 3
+        log 'Waiting for replica to reach SECONDARY state...'
+        retry_until "${service_name}" "rs.status().myState" "2"
+        log '✓ Replica reached SECONDARY state.'
+
+    elif (mongo "${ssl_args[@]}" --eval "rs.status()" | grep "no replset config has been received"); then
+        log "Initiating a new replica set with myself ($service_name)..."
+        mongo "${ssl_args[@]}" --eval "rs.initiate({'_id': '$replica_set', 'members': [{'_id': 0, 'host': '$service_name'}]})"
+
+        sleep 3
+        log 'Waiting for replica to reach PRIMARY state...'
+        retry_until "localhost" "db.isMaster().ismaster" "true"
+        primary="${service_name}"
+        log '✓ Replica reached PRIMARY state.'
+
+        if [[ "${AUTH}" == "true" ]]; then
+            log "Creating admin user..."
+            mongo admin "${ssl_args[@]}" --eval "db.createUser({user: '${admin_user}', pwd: '${admin_password}', roles: [{role: 'root', db: 'admin'}]})"
+        fi
+    fi
+
+    # User creation
+    if [[ -n "${primary}" && "$AUTH" == "true" && "$METRICS" == "true" ]]; then
+        metric_user_count=$(mongo admin --host "${primary}" "${admin_creds[@]}" "${ssl_args[@]}" --eval "db.system.users.find({user: '${metrics_user}'}).count()" --quiet)
+        if [[ "${metric_user_count}" == "0" ]]; then
+            log "Creating clusterMonitor user..."
+            mongo admin --host "${primary}" "${admin_creds[@]}" "${ssl_args[@]}" --eval "db.createUser({user: '${metrics_user}', pwd: '${metrics_password}', roles: [{role: 'clusterMonitor', db: 'admin'}, {role: 'read', db: 'local'}]})"
+        fi
+    fi
+
+    log "MongoDB bootstrap complete"
+    exit 0
+kind: ConfigMap
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset-init
+---
+apiVersion: v1
+data:
+  mongod.conf: |
+    null
+kind: ConfigMap
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset-mongodb
+---
+apiVersion: v1
+data:
+  mongodb-up-test.sh: |
+    #!/usr/bin/env bash
+
+    MONGOCACRT=/ca/tls.crt
+    MONGOPEM=/work-dir/mongo.pem
+
+    if [ -f "$MONGOPEM" ]; then
+        MONGOARGS="--ssl --sslCAFile $MONGOCACRT --sslPEMKeyFile $MONGOPEM"
+    fi
+
+    pod_name() {
+        local full_name="${FULL_NAME?Environment variable FULL_NAME not set}"
+        local index="$1"
+        echo "$full_name-$index.$full_name"
+    }
+
+    replicas() {
+        echo "${REPLICAS?Environment variable REPLICAS not set}"
+    }
+
+    master_pod() {
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" "--host=$(pod_name "$i")" "--eval=rs.isMaster().ismaster")
+            if [[ "$response" =~ "true" ]]; then
+                pod_name "$i"
+                break
+            fi
+        done
+    }
+
+    setup() {
+        local ready=0
+        until [[ "$ready" -eq $(replicas) ]]; do
+            echo "Waiting for application to become ready" >&2
+            sleep 1
+
+            for ((i = 0; i < $(replicas); ++i)); do
+                response=$(mongo "$MONGOARGS" "--host=$(pod_name "$i")" "--eval=rs.status()" || true)
+                if [[ "$response" =~ .*ok.* ]]; then
+                    ready=$((ready + 1))
+                fi
+            done
+        done
+    }
+
+    @test "Testing mongodb client is accessible" {
+        mongo -h
+        [ "$?" -eq 0 ]
+    }
+
+    @test "Connect mongodb client to mongodb pods" {
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" "--host=$(pod_name "$i")" "--eval=rs.status()")
+            if [[ ! "$response" =~ .*ok.* ]]; then
+                exit 1
+            fi
+        done
+    }
+
+    @test "Write key to master" {
+        response=$(mongo "$MONGOARGS" --host=$(master_pod) "--eval=db.test.insert({\"abc\": \"def\"}).nInserted")
+        if [[ ! "$response" =~ "1" ]]; then
+            exit 1
+        fi
+    }
+
+    @test "Read key from slaves" {
+        # wait for slaves to catch up
+        sleep 10
+
+        for ((i = 0; i < $(replicas); ++i)); do
+            response=$(mongo "$MONGOARGS" --host=$(pod_name "$i") "--eval=rs.slaveOk(); db.test.find({\"abc\":\"def\"})")
+            if [[ ! "$response" =~ .*def.* ]]; then
+                exit 1
+            fi
+        done
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset-tests
+---
+apiVersion: v1
+data:
+  init.bash: "MASTER=`redis-cli -h cloudserver-redis-ha -p 26379 sentinel get-master-addr-by-name cloudserver | grep -E '[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}'`\nREDIS_CONF=/data/conf/redis.conf\nSENTINEL_CONF=/data/conf/sentinel.conf\n\nset -e\nfunction sentinel_update(){\n    echo \"Updating sentinel config\"\n    sed -i \"1s/^/sentinel monitor cloudserver $1 6379 2 \\n/\" $SENTINEL_CONF\n}\n\nfunction redis_update(){\n    echo \"Updating redis config\"\n    echo \"slaveof $1 6379\" >> $REDIS_CONF\n}\n\nfunction setup_defaults(){\n    echo \"Setting up defaults\"\n    if [[ \"$HOSTNAME\" == \"cloudserver-redis-ha-server-0\" ]]; then\n        echo \"Setting this pod as the default master\"\n        sed -i \"s/^.*slaveof.*//\" $REDIS_CONF\n        sentinel_update \"$POD_IP\"\n    else\n        echo \"Setting default slave config..\"\n        echo \"slaveof cloudserver-redis-ha-server-0.cloudserver-redis-ha 6379\" >> $REDIS_CONF\n        sentinel_update \"cloudserver-redis-ha-server-0.cloudserver-redis-ha\"\n        redis_update \"cloudserver-redis-ha-server-0.cloudserver-redis-ha\"\n    fi\n}\n\nfunction find_master(){\n    echo \"Attempting to find master\"\n    if [[ ! `redis-cli -h $MASTER ping` ]]; then\n       echo \"Can't ping master, attempting to force failover\"\n       if redis-cli -h cloudserver-redis-ha -p 26379 sentinel failover cloudserver | grep -q 'NOGOODSLAVE' ; then \n           setup_defaults\n           return 0\n       fi\n       sleep 10\n       MASTER=`redis-cli -h cloudserver-redis-ha -p 26379 sentinel get-master-addr-by-name cloudserver | grep -E '[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}'`\n       if [[ \"$MASTER\" ]]; then\n           sentinel_update $MASTER\n           redis_update $MASTER\n       else\n          echo \"Could not failover, exiting...\"\n          exit 1\n       fi\n    else\n        echo \"Found reachable master, updating config\"\n        sentinel_update $MASTER\n        redis_update $MASTER\n    fi\n}\n\nmkdir -p /data/conf/\necho \"Initializing config..\"\n\ncp /readonly-config/redis.conf $REDIS_CONF\ncp /readonly-config/sentinel.conf $SENTINEL_CONF\n\nif [[ \"$MASTER\" ]]; then\n    find_master\nelse\n    setup_defaults\nfi\nif [[ \"$AUTH\" ]]; then\n    echo \"Setting auth values\"\n    sed -i \"s/replace-default-auth/$AUTH/\" $REDIS_CONF $SENTINEL_CONF\nfi\n\necho \"Ready...\"\n"
+  redis.conf: |
+    dir "/data"
+    maxmemory 0
+    maxmemory-policy volatile-lru
+    min-slaves-max-lag 5
+    min-slaves-to-write 1
+    rdbchecksum yes
+    rdbcompression yes
+    repl-diskless-sync yes
+    save 900 1
+  sentinel.conf: |
+    dir "/data"
+    sentinel down-after-milliseconds cloudserver 10000
+    sentinel failover-timeout cloudserver 180000
+    sentinel parallel-syncs cloudserver 5
+kind: ConfigMap
+metadata:
+  labels:
+    app: cloudserver-redis-ha
+    release: cloudserver
+  name: cloudserver-redis-ha-configmap
+---
+apiVersion: v1
+data:
+  locationConfig.json: |
+    {"us-east-1":{"details":{},"legacyAwsBehavior":true,"objectId":"us-east-1","type":"file"}}
+kind: ConfigMap
+metadata:
+  labels:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  name: cloudserver
+---
+apiVersion: v1
+data:
+  accessKey: bXktYWNjZXNzLWtleQ==
+  secretKey: bXktc2VjcmV0LWtleQ==
+kind: Secret
+metadata:
+  labels:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  name: cloudserver
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: cloudserver
+    component: localdata
+    release: cloudserver
+  name: cloudserver-localdata
+spec:
+  ports:
+  - name: localdata
+    port: 9991
+    protocol: TCP
+    targetPort: localdata
+  selector:
+    app: cloudserver
+    component: localdata
+    release: cloudserver
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset
+spec:
+  clusterIP: None
+  ports:
+  - name: mongodb
+    port: 27017
+  selector:
+    app: mongodb-replicaset
+    release: cloudserver
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: null
+  labels:
+    app: redis-ha
+    release: cloudserver
+  name: cloudserver-redis-ha
+spec:
+  clusterIP: None
+  ports:
+  - name: server
+    port: 6379
+    protocol: TCP
+    targetPort: redis
+  - name: sentinel
+    port: 26379
+    protocol: TCP
+    targetPort: sentinel
+  selector:
+    app: redis-ha
+    release: cloudserver
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  name: cloudserver
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cloudserver
+    component: localdata
+    release: cloudserver
+  name: cloudserver-localdata
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudserver
+      component: localdata
+      release: cloudserver
+  template:
+    metadata:
+      labels:
+        app: cloudserver
+        component: localdata
+        release: cloudserver
+    spec:
+      containers:
+      - args:
+        - npm
+        - run
+        - start_dataserver
+        env:
+        - name: S3DATAPATH
+          value: /data
+        - name: LISTEN_ADDR
+          value: 0.0.0.0
+        - name: HEALTHCHECKS_ALLOWFROM
+          value: 0.0.0.0/0
+        image: zenko/cloudserver:8.1.5
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          initialDelaySeconds: 5
+          tcpSocket:
+            port: localdata
+        name: cloudserver
+        ports:
+        - containerPort: 9991
+          name: localdata
+        readinessProbe:
+          initialDelaySeconds: 5
+          tcpSocket:
+            port: localdata
+        resources: {}
+        volumeMounts:
+        - mountPath: /data
+          name: persistent-storage
+      initContainers:
+      - command:
+        - sh
+        - -x
+        - -c
+        - if ! test -d /data/3511; then for i in `seq 1 3511`; do mkdir -p /data/$i; done; fi
+        image: busybox
+        name: cloudserver-localdata-init
+        volumeMounts:
+        - mountPath: /data
+          name: persistent-storage
+      serviceAccountName: cloudserver-localdata
+      volumes:
+      - name: persistent-storage
+        persistentVolumeClaim:
+          claimName: cloudserver-localdata
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: cloudserver
+    component: api
+    release: cloudserver
+  name: cloudserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudserver
+      component: api
+      release: cloudserver
+  template:
+    metadata:
+      annotations:
+        checksum/config: 45545b5da6008344868d2b8f55619948b96c14048c1cc3b07684a9681f63e7a5
+      labels:
+        app: cloudserver
+        component: api
+        release: cloudserver
+    spec:
+      containers:
+      - args:
+        - npm
+        - run
+        - start_s3server
+        env:
+        - name: REMOTE_MANAGEMENT_DISABLE
+          value: "1"
+        - name: S3METADATA
+          value: mongodb
+        - name: MONGODB_HOSTS
+          value: cloudserver-mongodb-replicaset-0.cloudserver-mongodb-replicaset:27017
+        - name: MONGODB_RS
+          value: rs0
+        - name: S3_LOCATION_FILE
+          value: /etc/config/locationConfig.json
+        - name: DATA_HOST
+          value: cloudserver-localdata
+        - name: REDIS_HOST
+          value: cloudserver-redis-ha
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_SENTINELS
+          value: cloudserver-redis-ha-server-0.cloudserver-redis-ha:26379
+        - name: REDIS_HA_NAME
+          value: cloudserver
+        - name: LOG_LEVEL
+          value: info
+        - name: ENDPOINT
+          value: cloudserver,cloudserver.local
+        - name: HEALTHCHECKS_ALLOWFROM
+          value: 0.0.0.0/0
+        - name: SCALITY_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: accessKey
+              name: cloudserver
+        - name: SCALITY_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secretKey
+              name: cloudserver
+        image: zenko/cloudserver:8.1.5
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          httpGet:
+            path: /_/healthcheck
+            port: http
+          initialDelaySeconds: 60
+        name: cloudserver
+        ports:
+        - containerPort: 8000
+          name: http
+        resources: {}
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /etc/config
+          name: location-config
+      serviceAccountName: cloudserver
+      volumes:
+      - configMap:
+          name: cloudserver
+        name: location-config
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: redis-ha
+    release: cloudserver
+  name: cloudserver-redis-ha-server
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-ha
+      release: cloudserver
+  serviceName: cloudserver-redis-ha
+  template:
+    metadata:
+      annotations:
+        checksum/config: dcbf40d9afbfdf62d862e82094c5210196b81c8aab405f3c48dfaf05467a154f
+      labels:
+        app: redis-ha
+        release: cloudserver
+    spec:
+      containers:
+      - args:
+        - /data/conf/redis.conf
+        command:
+        - redis-server
+        image: redis:4.0.11-stretch
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        name: redis
+        ports:
+        - containerPort: 6379
+          name: redis
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        resources: {}
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      - args:
+        - /data/conf/sentinel.conf
+        command:
+        - redis-sentinel
+        image: redis:4.0.11-stretch
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -p
+            - "26379"
+            - ping
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        name: sentinel
+        ports:
+        - containerPort: 26379
+          name: sentinel
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - -p
+            - "26379"
+            - ping
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        resources: {}
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      initContainers:
+      - args:
+        - /readonly-config/init.bash
+        command:
+        - bash
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        image: redis:4.0.11-stretch
+        imagePullPolicy: IfNotPresent
+        name: config-init
+        volumeMounts:
+        - mountPath: /readonly-config
+          name: config
+          readOnly: true
+        - mountPath: /data
+          name: data
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      volumes:
+      - configMap:
+          name: cloudserver-redis-ha-configmap
+        name: config
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      annotations: null
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-replicaset
+      release: cloudserver
+  serviceName: cloudserver-mongodb-replicaset
+  template:
+    metadata:
+      annotations:
+        checksum/config: 7165f7f8a3a6968dabe3e6b0068f7251c97c136724d56b57c42c4563e35df90b
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9216"
+        prometheus.io/scrape: "true"
+      labels:
+        app: mongodb-replicaset
+        release: cloudserver
+    spec:
+      containers:
+      - args:
+        - --config=/data/configdb/mongod.conf
+        - --dbpath=/data/db
+        - --replSet=rs0
+        - --port=27017
+        - --bind_ip=0.0.0.0
+        command:
+        - mongod
+        image: mongo:3.6
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - db.adminCommand('ping')
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: mongodb-replicaset
+        ports:
+        - containerPort: 27017
+          name: mongodb
+        readinessProbe:
+          exec:
+            command:
+            - mongo
+            - --eval
+            - db.adminCommand('ping')
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources: {}
+        volumeMounts:
+        - mountPath: /data/db
+          name: datadir
+        - mountPath: /data/configdb
+          name: configdir
+        - mountPath: /work-dir
+          name: workdir
+      initContainers:
+      - args:
+        - -c
+        - |
+          set -e
+          set -x
+
+          cp /configdb-readonly/mongod.conf /data/configdb/mongod.conf
+        command:
+        - sh
+        image: busybox
+        name: copy-config
+        resources: {}
+        volumeMounts:
+        - mountPath: /work-dir
+          name: workdir
+        - mountPath: /configdb-readonly
+          name: config
+        - mountPath: /data/configdb
+          name: configdir
+      - args:
+        - --work-dir=/work-dir
+        image: k8s.gcr.io/mongodb-install:0.6
+        imagePullPolicy: IfNotPresent
+        name: install
+        resources: {}
+        volumeMounts:
+        - mountPath: /work-dir
+          name: workdir
+      - args:
+        - -on-start=/init/on-start.sh
+        - -service=cloudserver-mongodb-replicaset
+        command:
+        - /work-dir/peer-finder
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: REPLICA_SET
+          value: rs0
+        image: mongo:3.6
+        imagePullPolicy: IfNotPresent
+        name: bootstrap
+        resources: {}
+        volumeMounts:
+        - mountPath: /work-dir
+          name: workdir
+        - mountPath: /init
+          name: init
+        - mountPath: /data/configdb
+          name: configdir
+        - mountPath: /data/db
+          name: datadir
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          name: cloudserver-mongodb-replicaset-mongodb
+        name: config
+      - configMap:
+          defaultMode: 493
+          name: cloudserver-mongodb-replicaset-init
+        name: init
+      - emptyDir: {}
+        name: workdir
+      - emptyDir: {}
+        name: configdir
+  volumeClaimTemplates:
+  - metadata:
+      annotations: null
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    app: cloudserver
+    component: localdata
+    release: cloudserver
+  name: cloudserver-localdata
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  labels:
+    app: mongodb-replicaset
+    release: cloudserver
+  name: cloudserver-mongodb-replicaset-test
+spec:
+  containers:
+  - command:
+    - /tools/bats/bats
+    - -t
+    - /tests/mongodb-up-test.sh
+    env:
+    - name: FULL_NAME
+      value: cloudserver-mongodb-replicaset
+    - name: REPLICAS
+      value: "1"
+    image: mongo:3.6
+    name: mongo
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+    - mountPath: /tests
+      name: tests
+  initContainers:
+  - command:
+    - bash
+    - -c
+    - |
+      set -ex
+      # copy bats to tools dir
+      cp -R /usr/local/libexec/ /tools/bats/
+    image: dduportal/bats:0.4.0
+    name: test-framework
+    volumeMounts:
+    - mountPath: /tools
+      name: tools
+  restartPolicy: Never
+  volumes:
+  - emptyDir: {}
+    name: tools
+  - configMap:
+      name: cloudserver-mongodb-replicaset-tests
+    name: tests
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  labels:
+    app: redis-ha
+    release: cloudserver
+  name: cloudserver-redis-ha-service-test
+spec:
+  containers:
+  - command:
+    - sh
+    - -c
+    - redis-cli -h cloudserver-redis-ha -p 6379 info server
+    image: redis:4.0.11-stretch
+    name: cloudserver-service-test
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+  name: cloudserver-test
+spec:
+  containers:
+  - command:
+    - sh
+    - -c
+    - aws s3 --endpoint-url=http://cloudserver --region=us-east-1 ls
+    env:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          key: accessKey
+          name: cloudserver
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          key: secretKey
+          name: cloudserver
+    image: docker.io/mesosphere/aws-cli:1.14.5
+    imagePullPolicy: IfNotPresent
+    name: cloudserver-test
+  restartPolicy: Never
