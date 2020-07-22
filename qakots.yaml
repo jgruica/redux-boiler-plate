@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: UqE_vv4vvQzr09cJygA4EOxO83_U9vOy8IgRp9Sa
-  RO_PASSWORD_D: voMKg7z2cAoqophLyWydZwhmb_5a3Zborpm4vFRn
-  RW_PASSWORD: J3o55fthOV4Cd3GBqG3pwUy4fxfPTZCPFCoaLxdi
-  RW_PASSWORD_D: rd4YX9wjWGHfWJGYtEsfNwwQV9kXBjCDKT2TBn6h
+  RO_PASSWORD: S2XvucmCkBSH3EWp6KLlzIUapRhNlr5fwocKRvSq
+  RO_PASSWORD_D: Lp_Px8niskEzTXJw1hUOf27sbBqc6s2EsRdPaEgF
+  RW_PASSWORD: iNyehTci_bSbGxB06dYNHJKHDXyboRuD8R1gaFeq
+  RW_PASSWORD_D: SKqEW94gDGfxLz4j9dZtzT1vKJT83FzwgKxSlmHS
 kind: ConfigMap
 metadata:
   name: example-config
@@ -194,13 +194,13 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: jm1TpYbANJ4m3FLVq4vQ_de1zbc5mw_Kte7VVztO
+          value: iqmqGeU8jxGbiLHOo80qXgGTbCz9UOtgy3kzu4mq
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
           value: "5"
         - name: DUMB_ENV_NAME_2
-          value: test1-1
+          value: test
         - name: DUMB_ENV_NAME_3
           value: "7"
         - name: DUMB_ENV_NAME_4
@@ -395,7 +395,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-y81f78
+  name: job-2-fj7bve
 spec:
   backoffLimit: 1
   completions: 1
