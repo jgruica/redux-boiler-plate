@@ -2,23 +2,24 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: S2XvucmCkBSH3EWp6KLlzIUapRhNlr5fwocKRvSq
-  RO_PASSWORD_D: Lp_Px8niskEzTXJw1hUOf27sbBqc6s2EsRdPaEgF
-  RW_PASSWORD: iNyehTci_bSbGxB06dYNHJKHDXyboRuD8R1gaFeq
-  RW_PASSWORD_D: SKqEW94gDGfxLz4j9dZtzT1vKJT83FzwgKxSlmHS
+  RO_PASSWORD: BY7BzAtgsFP5er7Sy1XDNq6BDHMlWLdQu2bKaCPG
+  RO_PASSWORD_D: w4vs_FXGRbC0fd3Vesj_N0F6R02zVdRLPyTF7jKv
+  RW_PASSWORD: Muu577FUE9F9Wc8lPoQVx7GC2ogb7d9hOS3qRlq4
+  RW_PASSWORD_D: mlqcCik4N0sqNmdXwy8wk9hs9S0jDwQOKLpMb1nU
 kind: ConfigMap
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   name: example-config
 ---
 apiVersion: v1
 data:
-  .dockerconfigjson: eyJhdXRocyI6eyJwcm94eS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiZWpreU5sOWlhVFl5Y3poTFZqRklTMU4zTjNKellUUm9WM05oYW1OdlVYQTZlamt5Tmw5aWFUWXljemhMVmpGSVMxTjNOM0p6WVRSb1YzTmhhbU52VVhBPSJ9LCJyZWdpc3RyeS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiZWpreU5sOWlhVFl5Y3poTFZqRklTMU4zTjNKellUUm9WM05oYW1OdlVYQTZlamt5Tmw5aWFUWXljemhMVmpGSVMxTjNOM0p6WVRSb1YzTmhhbU52VVhBPSJ9fX0=
+  .dockerconfigjson: eyJhdXRocyI6eyJwcm94eS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiT0Y5UE0wMW1TRVV3VjBSMmRteDBXbWhIVEdORlQxcEpZbWhtWDJSaVgwSTZPRjlQTTAxbVNFVXdWMFIyZG14MFdtaEhUR05GVDFwSlltaG1YMlJpWDBJPSJ9LCJyZWdpc3RyeS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiT0Y5UE0wMW1TRVV3VjBSMmRteDBXbWhIVEdORlQxcEpZbWhtWDJSaVgwSTZPRjlQTTAxbVNFVXdWMFIyZG14MFdtaEhUR05GVDFwSlltaG1YMlJpWDBJPSJ9fX0=
 kind: Secret
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   creationTimestamp: null
-  labels:
-    kots.io/kotsadm: "true"
-    velero.io/exclude-from-backup: "true"
   name: kotsadm-replicated-registry
   namespace: test
 type: kubernetes.io/dockerconfigjson
@@ -28,6 +29,8 @@ data:
   postgresql-password: cGFzc3dvcmQ=
 kind: Secret
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: postgresql
     chart: postgresql-8.7.4
@@ -39,6 +42,8 @@ type: Opaque
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: example
     component: mysql
@@ -57,6 +62,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: example
     component: nginx
@@ -72,6 +79,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: postgresql
     chart: postgresql-8.7.4
@@ -92,6 +101,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: postgresql
     chart: postgresql-8.7.4
@@ -112,6 +123,8 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: example
     component: nginx
@@ -126,6 +139,7 @@ spec:
     metadata:
       annotations:
         backup.velero.io/backup-volumes: dummydata,scratch
+        kots.io/app-slug: qakots
       labels:
         app: example
         component: nginx
@@ -172,6 +186,8 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: example
     component: mysql
@@ -187,6 +203,7 @@ spec:
     metadata:
       annotations:
         backup.velero.io/backup-volumes: datadir
+        kots.io/app-slug: qakots
       labels:
         app: example
         component: mysql
@@ -194,7 +211,7 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: iqmqGeU8jxGbiLHOo80qXgGTbCz9UOtgy3kzu4mq
+          value: NgvRfVMLPsW7oFbR7vK5LSf8vXeg2cBWcOF0hLid
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
@@ -250,6 +267,8 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: postgresql
     chart: postgresql-8.7.4
@@ -268,6 +287,7 @@ spec:
     metadata:
       annotations:
         backup.velero.io/backup-volumes: backup
+        kots.io/app-slug: qakots
         pre.hook.backup.velero.io/command: '["/bin/bash", "-c", "PGPASSWORD=$POSTGRES_PASSWORD
           pg_dump -U username -d dbname -h 127.0.0.1 > /scratch/backup.sql"]'
         pre.hook.backup.velero.io/timeout: 3m
@@ -371,11 +391,19 @@ spec:
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   name: hello
 spec:
   jobTemplate:
+    metadata:
+      annotations:
+        kots.io/app-slug: qakots
     spec:
       template:
+        metadata:
+          annotations:
+            kots.io/app-slug: qakots
         spec:
           containers:
           - args:
@@ -392,16 +420,20 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   labels:
     app: example
     component: job-2
-  name: job-2-fj7bve
+  name: job-2-b2ibpd
 spec:
   backoffLimit: 1
   completions: 1
   parallelism: 1
   template:
     metadata:
+      annotations:
+        kots.io/app-slug: qakots
       labels:
         app: example
         component: job-2
@@ -418,6 +450,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    kots.io/app-slug: qakots
   name: dummydata
 spec:
   accessModes:
@@ -425,3 +459,23 @@ spec:
   resources:
     requests:
       storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+    kots.io/app-slug: qakots
+  labels:
+    app: redis-ha
+    chart: redis-ha-3.8.0
+    heritage: Tiller
+    release: replicated-deployment
+  name: replicated-deployment-redis-ha-service-test
+spec:
+  containers:
+  - image: registry.replicated.com/qakots/redis:5.0.5-alpine
+    name: replicated-deployment-service-test
+  imagePullSecrets:
+  - name: kotsadm-replicated-registry
+  restartPolicy: Never
