@@ -1,0 +1,485 @@
+apiVersion: v1
+data:
+  ENV_VAR_1: fake
+  ENV_VAR_2: faker
+  RO_PASSWORD: F6kTH06OfPo83DqBUOmhhYcU2hUzjqz6JWRJ0U4R
+  RO_PASSWORD_D: UUbQlvXsil2VqIkR7KvXwCPlUGbQTsR81CUDhZQN
+  RW_PASSWORD: BQpPVBTVS1ARRrCPYIU8ZcCLKGZqWIlVOBfJYGjt
+  RW_PASSWORD_D: dP5No62lll8UHnrxX7CBe7LuWgaJtEE9DqZMlkip
+kind: ConfigMap
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  name: example-config
+---
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJ0dGwuc2giOnsiYXV0aCI6ImFtVnNaVzVoT25SbGMzUT0ifX19
+kind: Secret
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  creationTimestamp: null
+  name: kotsadm-replicated-registry
+  namespace: qakots
+type: kubernetes.io/dockerconfigjson
+---
+apiVersion: v1
+data:
+  postgresql-password: cGFzc3dvcmQ=
+kind: Secret
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: postgresql
+    chart: postgresql-8.7.4
+    heritage: Tiller
+    release: postgresql
+  name: postgresql
+type: Opaque
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: example
+    component: mysql
+  name: example-mysql
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+    protocol: TCP
+    targetPort: mysql
+  selector:
+    app: example
+    component: mysql
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: example
+    component: nginx
+  name: example-nginx
+spec:
+  ports:
+  - port: 80
+  selector:
+    app: example
+    component: nginx
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: postgresql
+    chart: postgresql-8.7.4
+    heritage: Tiller
+    release: postgresql
+  name: postgresql
+spec:
+  ports:
+  - name: tcp-postgresql
+    port: 5432
+    targetPort: tcp-postgresql
+  selector:
+    app: postgresql
+    release: postgresql
+    role: master
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: postgresql
+    chart: postgresql-8.7.4
+    heritage: Tiller
+    release: postgresql
+  name: postgresql-headless
+spec:
+  clusterIP: None
+  ports:
+  - name: tcp-postgresql
+    port: 5432
+    targetPort: tcp-postgresql
+  selector:
+    app: postgresql
+    release: postgresql
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: example
+    component: nginx
+  name: example-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example
+      component: nginx
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: dummydata,scratch
+        kots.io/app-slug: qakots
+      labels:
+        app: example
+        component: nginx
+    spec:
+      containers:
+      - envFrom:
+        - configMapRef:
+            name: example-config
+        image: ttl.sh/jelena-test/nginx:latest
+        name: nginx
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      - env:
+        - name: HOSTNAME
+          value: www.google.com
+        image: ttl.sh/jelena-test/qa-kots:alpine-3.5
+        name: ping
+      - image: ttl.sh/jelena-test/redis:5.0.7
+        name: redis
+        volumeMounts:
+        - mountPath: /dummydata
+          name: dummydata
+        - mountPath: /scratch
+          name: scratch
+      imagePullSecrets:
+      - name: kotsadm-replicated-registry
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - until nslookup example-mysql; do echo waiting for example-mysql; sleep 2;
+          done;
+        image: ttl.sh/jelena-test/dnsutils:14.04
+        name: nslookup
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: dummydata
+        persistentVolumeClaim:
+          claimName: dummydata
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: example
+    component: mysql
+  name: example-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example
+      component: mysql
+  serviceName: example-mysql
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: datadir
+        kots.io/app-slug: qakots
+      labels:
+        app: example
+        component: mysql
+    spec:
+      containers:
+      - env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: sYK5VGudLjYBIZMMq9AIlsGmngFQUQTuDG1DfwLe
+        - name: MYSQL_ROOT_HOST
+          value: '%'
+        - name: DUMB_ENV_NAME
+          value: "5"
+        - name: DUMB_ENV_NAME_2
+          value: test1
+        - name: DUMB_ENV_NAME_3
+          value: "7"
+        - name: DUMB_ENV_NAME_4
+          value: "9"
+        - name: DUMB_ENV_NAME_5
+          value: "12"
+        image: ttl.sh/jelena-test/qa-mysql:5.6
+        name: qa-mysql
+        ports:
+        - containerPort: 3306
+          name: mysql
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: datadir
+        - mountPath: /volume-2
+          name: scratch
+      imagePullSecrets:
+      - name: kotsadm-replicated-registry
+      initContainers:
+      - command:
+        - rm
+        - -fr
+        - /var/lib/mysql/lost+found
+        image: ttl.sh/jelena-test/busybox:1.25.0
+        imagePullPolicy: IfNotPresent
+        name: remove-lost-found
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: datadir
+      volumes:
+      - name: datadir
+        persistentVolumeClaim:
+          claimName: datadir
+      - emptyDir: {}
+        name: scratch
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: postgresql
+    chart: postgresql-8.7.4
+    heritage: Tiller
+    release: postgresql
+  name: postgresql-postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+      release: postgresql
+      role: master
+  serviceName: postgresql-headless
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: backup
+        kots.io/app-slug: qakots
+        pre.hook.backup.velero.io/command: '["/bin/bash", "-c", "PGPASSWORD=$POSTGRES_PASSWORD
+          pg_dump -U username -d dbname -h 127.0.0.1 > /scratch/backup.sql"]'
+        pre.hook.backup.velero.io/timeout: 3m
+      labels:
+        app: postgresql
+        chart: postgresql-8.7.4
+        heritage: Tiller
+        release: postgresql
+        role: master
+      name: postgresql
+    spec:
+      containers:
+      - env:
+        - name: BITNAMI_DEBUG
+          value: "false"
+        - name: POSTGRESQL_PORT_NUMBER
+          value: "5432"
+        - name: POSTGRESQL_VOLUME_DIR
+          value: /bitnami/postgresql
+        - name: PGDATA
+          value: /bitnami/postgresql/data
+        - name: POSTGRES_USER
+          value: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: postgresql
+        - name: POSTGRES_DB
+          value: dbname
+        - name: POSTGRESQL_ENABLE_LDAP
+          value: "no"
+        image: ttl.sh/jelena-test/postgresql:11.7.0-debian-10-r71
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U "username" -d "dbname" -h 127.0.0.1 -p 5432
+          failureThreshold: 6
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        name: postgresql
+        ports:
+        - containerPort: 5432
+          name: tcp-postgresql
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - -e
+            - |
+              exec pg_isready -U "username" -d "dbname" -h 127.0.0.1 -p 5432
+              [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+          failureThreshold: 6
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+        securityContext:
+          runAsUser: 1001
+        volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        - mountPath: /bitnami/postgresql
+          name: data
+          subPath: null
+        - mountPath: /scratch
+          name: backup
+      imagePullSecrets:
+      - name: kotsadm-replicated-registry
+      securityContext:
+        fsGroup: 1001
+      volumes:
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+        name: backup
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+        name: dshm
+  updateStrategy:
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  name: hello
+spec:
+  jobTemplate:
+    metadata:
+      annotations:
+        kots.io/app-slug: qakots
+    spec:
+      template:
+        metadata:
+          annotations:
+            kots.io/app-slug: qakots
+        spec:
+          containers:
+          - args:
+            - /bin/sh
+            - -c
+            - date; echo Hello
+            image: ttl.sh/jelena-test/qa-kots:busybox-1.25.0
+            name: hello
+          imagePullSecrets:
+          - name: kotsadm-replicated-registry
+          restartPolicy: OnFailure
+  schedule: '*/1 * * * *'
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: example
+    component: job-2
+  name: job-2-5hued3
+spec:
+  backoffLimit: 1
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      annotations:
+        kots.io/app-slug: qakots
+      labels:
+        app: example
+        component: job-2
+    spec:
+      containers:
+      - command:
+        - sh
+        - -c
+        - cat /etc/os-release
+        image: ttl.sh/jelena-test/alpine-curl:latest
+        name: curl
+      imagePullSecrets:
+      - name: kotsadm-replicated-registry
+      restartPolicy: Never
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  name: dummydata
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    helm.sh/hook: test-success
+    kots.io/app-slug: qakots
+  labels:
+    app: redis-ha
+    chart: redis-ha-3.8.0
+    heritage: Tiller
+    release: replicated-deployment
+  name: replicated-deployment-redis-ha-service-test
+spec:
+  containers:
+  - image: ttl.sh/jelena-test/redis:5.0.7
+    name: replicated-deployment-service-test
+  imagePullSecrets:
+  - name: kotsadm-replicated-registry
+  restartPolicy: Never
