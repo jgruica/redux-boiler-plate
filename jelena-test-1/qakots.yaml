@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: ufFRflQL3y22eY88SSYnVXSqzwzsBURH23s2Rqa6
-  RO_PASSWORD_D: kcHqC4BonbEPv3s8WhBDkhzdlPKAHKP7QJOXibAv
+  RO_PASSWORD: nA0A1YZIj2RQ5mZglMY2KV5OlpydrGDVyWIuywNt
+  RO_PASSWORD_D: c3AIOSwOx2ztfETwe1CmRYP98VHqVj_nOoy9UXSJ
   RW_PASSWORD: IkCEzhrV6UyaixWGAhulyuR85uf3VKjUpn_ufs6P
-  RW_PASSWORD_D: y9V3YhNhquYoiElqWkrJzo22N7cX67Kw9f6kja88
+  RW_PASSWORD_D: z1ipTvWckYQuCcTp8_acm53b2wSlTw8cIun8Op7K
 kind: ConfigMap
 metadata:
   annotations:
@@ -217,7 +217,7 @@ spec:
         - name: DUMB_ENV_NAME
           value: "5"
         - name: DUMB_ENV_NAME_2
-          value: test1
+          value: test12
         - name: DUMB_ENV_NAME_3
           value: "7"
         - name: DUMB_ENV_NAME_4
@@ -427,7 +427,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-obbykh
+  name: job-2-pkscgx
 spec:
   backoffLimit: 1
   completions: 1
@@ -478,7 +478,7 @@ metadata:
   name: replicated-deployment-redis-ha-service-test
 spec:
   containers:
-  - image: ttl.sh/test/redis:5.0.5-alpine
+  - image: ttl.sh/test/redis:5.0.7
     name: replicated-deployment-service-test
   imagePullSecrets:
   - name: kotsadm-replicated-registry
