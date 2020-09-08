@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: 17GOCJvZtEectBi7uTPicHBY2yH3D4CB5rGZrRPr
-  RO_PASSWORD_D: rT4MDQsxQDUYDBJUGYWE7ndj_2icw6GyhdEyJLvx
-  RW_PASSWORD: Muu577FUE9F9Wc8lPoQVx7GC2ogb7d9hOS3qRlq4
-  RW_PASSWORD_D: wxjUtDveLpVPvOfVsGDvF2e6YN2uVultP0IYyPnz
+  RO_PASSWORD: AjcQQueYcVxD69xs3lu01sKlgibmZsp4sQRbk1ZL
+  RO_PASSWORD_D: 6eZudwxVP44DIgRkR7TCagffJoG95JDwhWDsoapB
+  RW_PASSWORD: gR19dgKN_5XtTlJ6nScpw0AJ_6iTRxkCH1j9l2LI
+  RW_PASSWORD_D: o7uV6OIOf6VmmPWpYcMrrm27_WNuGzCF2UzS1w2H
 kind: ConfigMap
 metadata:
   annotations:
@@ -21,7 +21,7 @@ metadata:
     kots.io/app-slug: qakots
   creationTimestamp: null
   name: kotsadm-replicated-registry
-  namespace: test
+  namespace: default
 type: kubernetes.io/dockerconfigjson
 ---
 apiVersion: v1
@@ -211,13 +211,13 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: NgvRfVMLPsW7oFbR7vK5LSf8vXeg2cBWcOF0hLid
+          value: AbOct1vsXj9Ak7Jy2sg1LcVSPDQdpWFrO3KqMeCS
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
           value: "5"
         - name: DUMB_ENV_NAME_2
-          value: test1
+          value: test-1
         - name: DUMB_ENV_NAME_3
           value: "7"
         - name: DUMB_ENV_NAME_4
@@ -425,7 +425,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-9vfyqz
+  name: job-2-pxtr4g
 spec:
   backoffLimit: 1
   completions: 1
@@ -464,6 +464,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   annotations:
+    backup.velero.io/backup-volumes: redis-storage-2
     helm.sh/hook: test-success
     kots.io/app-slug: qakots
   labels:
@@ -472,10 +473,17 @@ metadata:
     heritage: Tiller
     release: replicated-deployment
   name: replicated-deployment-redis-ha-service-test
+  namespace: lonesomepod
 spec:
   containers:
   - image: registry.replicated.com/qakots/redis:5.0.5-alpine
     name: replicated-deployment-service-test
+    volumeMounts:
+    - mountPath: /data/redis
+      name: redis-storage-2
   imagePullSecrets:
   - name: kotsadm-replicated-registry
   restartPolicy: Never
+  volumes:
+  - emptyDir: {}
+    name: redis-storage-2
