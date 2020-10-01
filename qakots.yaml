@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: TBPfs6Oov3KijnFKDUvJqjclTrzx4GE3WgfBn2YU
-  RO_PASSWORD_D: 0zyNsTBSUcHWcXf10WVQX9vi9_CDKwnXOF_yfttO
+  RO_PASSWORD: ecHBad3Ge7F7dSicoXxDGvvlrfp8jEooU3k5_4R0
+  RO_PASSWORD_D: Dj3Itec8gZ6NCNPjnXgTMxMN4t3PZC3PDsTQ6n6y
   RW_PASSWORD: MYgU_XLeZnLEG7vA0igg18wmXPyNm0tXmuzVtKmK
-  RW_PASSWORD_D: fMDfcH3Tn4noGcPqSqs3rtoEjfAwvcl7vyWbRmOu
+  RW_PASSWORD_D: X5CXnrCNX5ZI70UbFgcSyg29YF6S5IzcGnFh1LVs
 kind: ConfigMap
 metadata:
   annotations:
@@ -130,7 +130,7 @@ metadata:
     component: nginx
   name: example-nginx
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: example
@@ -425,7 +425,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-arkcpv
+  name: job-2-pt0jpk
 spec:
   backoffLimit: 1
   completions: 1
