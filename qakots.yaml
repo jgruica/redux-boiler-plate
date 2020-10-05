@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: LYj3IX4QwVvPZ1eSWAfTiwErh3i9o099fftFPuQK
-  RO_PASSWORD_D: cx4LQ7nIVxjdbvP6L6jX2N70ck_GqX_vIflHYrDH
+  RO_PASSWORD: MC0bcFGaUj99yOlOmN64zO28zgIPxZ_zzLfLhh8p
+  RO_PASSWORD_D: IIxs13py9JGw8sJxEIyFKf3E4KxQNyI_YnByV1Rh
   RW_PASSWORD: xprLyn3beMZO77NeZapVZr2Y3pyMh97hdHRmtgMe
-  RW_PASSWORD_D: U42TYSeMiXvw7UD7DrzOhef4ZZoVxretdwBDhHpt
+  RW_PASSWORD_D: zOO2uibB3X9_9fwobMqn4tfoZjslQrA_stsGADeo
 kind: ConfigMap
 metadata:
   annotations:
@@ -145,7 +145,14 @@ spec:
         component: nginx
     spec:
       containers:
-      - envFrom:
+      - env:
+        - name: HAS_REGISTRY
+          value: '{ { repl HasLocalRegistry } }'
+        - name: IS_KURL
+          value: '{ { repl IsKurl } }'
+        - name: IS_AIRGAP
+          value: '{ { repl IsAirgap } }'
+        envFrom:
         - configMapRef:
             name: example-config
         image: nginx
@@ -425,7 +432,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-d7pk56
+  name: job-2-p3v6xl
 spec:
   backoffLimit: 1
   completions: 1
