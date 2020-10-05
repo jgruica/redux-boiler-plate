@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: exGEliPlrjOVhuK7yx0p0JL0RZCnjGLpbzzRtSb5
-  RO_PASSWORD_D: xORRDpNKRghrZxk3G0muUgLOrPSiYNMq_M36Of6I
-  RW_PASSWORD: ri5FR8SZPh6_aopi38MC5wGnaZedFatDWU5PuTGi
-  RW_PASSWORD_D: yCcphGPvFxy6IpHne6VkpaERKMYfL_bIt9Fm1OUq
+  RO_PASSWORD: IPKUgTNXzGIzquSYdOL8g6AaB4XvvYQGS6nXOlU8
+  RO_PASSWORD_D: eU4jTavdizpTrblBSNpZGrZ6fCLqzSIjNunPkXJW
+  RW_PASSWORD: xprLyn3beMZO77NeZapVZr2Y3pyMh97hdHRmtgMe
+  RW_PASSWORD_D: J9uVXFXiAN68EKZ7Bxt9E_gGwvLbfxSHtgbualip
 kind: ConfigMap
 metadata:
   annotations:
@@ -14,14 +14,14 @@ metadata:
 ---
 apiVersion: v1
 data:
-  .dockerconfigjson: eyJhdXRocyI6eyJ0dGwuc2giOnsiYXV0aCI6ImFtVnNaVzVoT2pFeU13PT0ifX19
+  .dockerconfigjson: eyJhdXRocyI6eyJwcm94eS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiT0Y5UE0wMW1TRVV3VjBSMmRteDBXbWhIVEdORlQxcEpZbWhtWDJSaVgwSTZPRjlQTTAxbVNFVXdWMFIyZG14MFdtaEhUR05GVDFwSlltaG1YMlJpWDBJPSJ9LCJyZWdpc3RyeS5yZXBsaWNhdGVkLmNvbSI6eyJhdXRoIjoiT0Y5UE0wMW1TRVV3VjBSMmRteDBXbWhIVEdORlQxcEpZbWhtWDJSaVgwSTZPRjlQTTAxbVNFVXdWMFIyZG14MFdtaEhUR05GVDFwSlltaG1YMlJpWDBJPSJ9fX0=
 kind: Secret
 metadata:
   annotations:
     kots.io/app-slug: qakots
   creationTimestamp: null
   name: kotsadm-replicated-registry
-  namespace: qakots
+  namespace: test
 type: kubernetes.io/dockerconfigjson
 ---
 apiVersion: v1
@@ -148,7 +148,7 @@ spec:
       - envFrom:
         - configMapRef:
             name: example-config
-        image: ttl.sh/test-123/nginx:latest
+        image: nginx
         name: nginx
         resources:
           limits:
@@ -157,9 +157,9 @@ spec:
       - env:
         - name: HOSTNAME
           value: www.google.com
-        image: ttl.sh/test-123/qa-kots:alpine-3.5
+        image: proxy.replicated.com/proxy/qakots/quay.io/replicatedcom/qa-kots:alpine-3.5
         name: ping
-      - image: ttl.sh/test-123/redis:5.0.7
+      - image: registry.replicated.com/qakots/redis:5.0.7
         name: redis
         volumeMounts:
         - mountPath: /dummydata
@@ -174,7 +174,7 @@ spec:
         - -c
         - until nslookup example-mysql; do echo waiting for example-mysql; sleep 2;
           done;
-        image: ttl.sh/test-123/dnsutils:14.04
+        image: proxy.replicated.com/proxy/qakots/gcr.io/replicated-qa/dnsutils:14.04
         name: nslookup
       volumes:
       - emptyDir: {}
@@ -211,20 +211,20 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: DCeXZkrufi_WqTzqG4Ut8qRqGqGQvrlmAGwHHOxz
+          value: Y7h8dN8ZPZWH5DqgCZwqw3in9YphU8Zz_zg5BeLa
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
           value: "5"
         - name: DUMB_ENV_NAME_2
-          value: test1
+          value: test
         - name: DUMB_ENV_NAME_3
           value: "7"
         - name: DUMB_ENV_NAME_4
           value: "9"
         - name: DUMB_ENV_NAME_5
           value: "12"
-        image: ttl.sh/test-123/qa-mysql:5.6
+        image: proxy.replicated.com/proxy/qakots/repldev/qa-mysql:5.6
         name: qa-mysql
         ports:
         - containerPort: 3306
@@ -242,7 +242,7 @@ spec:
         - rm
         - -fr
         - /var/lib/mysql/lost+found
-        image: ttl.sh/test-123/busybox:1.25.0
+        image: busybox:1.25.0
         imagePullPolicy: IfNotPresent
         name: remove-lost-found
         volumeMounts:
@@ -320,7 +320,7 @@ spec:
           value: dbname
         - name: POSTGRESQL_ENABLE_LDAP
           value: "no"
-        image: ttl.sh/test-123/postgresql:11.7.0-debian-10-r71
+        image: docker.io/bitnami/postgresql:11.7.0-debian-10-r71
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -365,8 +365,6 @@ spec:
           subPath: null
         - mountPath: /scratch
           name: backup
-      imagePullSecrets:
-      - name: kotsadm-replicated-registry
       securityContext:
         fsGroup: 1001
       volumes:
@@ -412,7 +410,7 @@ spec:
             - /bin/sh
             - -c
             - date; echo Hello
-            image: ttl.sh/test-123/qa-kots:busybox-1.25.0
+            image: proxy.replicated.com/proxy/qakots/429114214526.dkr.ecr.us-east-1.amazonaws.com/qa-kots:busybox-1.25.0
             name: hello
           imagePullSecrets:
           - name: kotsadm-replicated-registry
@@ -427,7 +425,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-1u4o7z
+  name: job-2-dzuni3
 spec:
   backoffLimit: 1
   completions: 1
@@ -445,10 +443,8 @@ spec:
         - sh
         - -c
         - cat /etc/os-release
-        image: ttl.sh/test-123/alpine-curl:latest
+        image: byrnedo/alpine-curl
         name: curl
-      imagePullSecrets:
-      - name: kotsadm-replicated-registry
       restartPolicy: Never
 ---
 apiVersion: v1
@@ -480,7 +476,7 @@ metadata:
   namespace: lonesomepod
 spec:
   containers:
-  - image: ttl.sh/test-123/redis:5.0.7
+  - image: registry.replicated.com/qakots/redis:5.0.5-alpine
     name: replicated-deployment-service-test
     volumeMounts:
     - mountPath: /data/redis
