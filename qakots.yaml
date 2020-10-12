@@ -2,10 +2,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: 9HsH5ydYZZNUilBowxZtC6wqbey13d0lKQs0gala
-  RO_PASSWORD_D: E2AfkCiOKAeboxzGB8bve3fdKaUZJn7ysAT3uPW8
+  RO_PASSWORD: 5aChQydT82Q_AAmJRItZcCtJLO0eBXlKeKPPDaEY
+  RO_PASSWORD_D: dXET96wjha54a1jnfsSv4wF4NBpWbb5nsH7nbkYu
   RW_PASSWORD: xprLyn3beMZO77NeZapVZr2Y3pyMh97hdHRmtgMe
-  RW_PASSWORD_D: eJCaymAdF6oU6UKLiKsuRZGWdwmeFvZamoULjs3x
+  RW_PASSWORD_D: uai97RtUll3TvI2yOCVRP_HDnSdzuG9ypTRyhKws
 kind: ConfigMap
 metadata:
   annotations:
@@ -432,7 +432,7 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-t9vwln
+  name: job-2-zaeh3j
 spec:
   backoffLimit: 1
   completions: 1
@@ -466,31 +466,3 @@ spec:
   resources:
     requests:
       storage: 1Gi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  annotations:
-    backup.velero.io/backup-volumes: redis-storage-2
-    helm.sh/hook: test-success
-    kots.io/app-slug: qakots
-  labels:
-    app: redis-ha
-    chart: redis-ha-3.8.0
-    heritage: Tiller
-    release: replicated-deployment
-  name: replicated-deployment-redis-ha-service-test
-  namespace: lonesomepod
-spec:
-  containers:
-  - image: registry.replicated.com/qakots/redis:5.0.5-alpine
-    name: replicated-deployment-service-test
-    volumeMounts:
-    - mountPath: /data/redis
-      name: redis-storage-2
-  imagePullSecrets:
-  - name: kotsadm-replicated-registry
-  restartPolicy: Never
-  volumes:
-  - emptyDir: {}
-    name: redis-storage-2
