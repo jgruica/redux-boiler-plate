@@ -1,27 +1,100 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    key: val
+    kots.io/app-slug: qakots
+  labels:
+    app.kubernetes.io/name: swimlane-backup
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
+  name: swimlane-backup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
+  name: swimlane-backup
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - update
+  - patch
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
+  name: swimlane-backup-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: swimlane-backup
+subjects:
+- kind: ServiceAccount
+  name: swimlane-backup
+---
+apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: faker
-  RO_PASSWORD: exGEliPlrjOVhuK7yx0p0JL0RZCnjGLpbzzRtSb5
-  RO_PASSWORD_D: xORRDpNKRghrZxk3G0muUgLOrPSiYNMq_M36Of6I
-  RW_PASSWORD: ri5FR8SZPh6_aopi38MC5wGnaZedFatDWU5PuTGi
-  RW_PASSWORD_D: yCcphGPvFxy6IpHne6VkpaERKMYfL_bIt9Fm1OUq
+  RO_PASSWORD: ajruKPj3u3kKOrUmnc1tfxZgFApFbRD1RrQVoQWv
+  RO_PASSWORD_D: FOzr9o44EwQODzzD2QTsOG8NrzN3xF7IIDskzTcv
+  RW_PASSWORD: CKGbj526dBSxCeG2X6LCAwZOFHO9x4r2NzRrLnkm
+  RW_PASSWORD_D: 8wny_jI0sp7TmcQGxhDqKjyitosqFjS6Rx8uVdbl
 kind: ConfigMap
 metadata:
   annotations:
     kots.io/app-slug: qakots
+  labels:
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: example-config
 ---
 apiVersion: v1
 data:
-  .dockerconfigjson: eyJhdXRocyI6eyJ0dGwuc2giOnsiYXV0aCI6ImFtVnNaVzVoT2pFeU13PT0ifX19
+  my_init_script.sh: ""
+kind: ConfigMap
+metadata:
+  annotations:
+    kots.io/app-slug: qakots
+  labels:
+    app: postgresql
+    chart: postgresql-8.7.4
+    heritage: Tiller
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
+    release: postgresql
+  name: postgresql-init-scripts
+---
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJ0dGwuc2giOnsiYXV0aCI6ImFtVnNaVzVoT25SbGMzUT0ifX19
 kind: Secret
 metadata:
   annotations:
     kots.io/app-slug: qakots
   creationTimestamp: null
+  labels:
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: kotsadm-replicated-registry
-  namespace: qakots
+  namespace: default
 type: kubernetes.io/dockerconfigjson
 ---
 apiVersion: v1
@@ -35,6 +108,8 @@ metadata:
     app: postgresql
     chart: postgresql-8.7.4
     heritage: Tiller
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
     release: postgresql
   name: postgresql
 type: Opaque
@@ -47,6 +122,8 @@ metadata:
   labels:
     app: example
     component: mysql
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: example-mysql
 spec:
   ports:
@@ -67,6 +144,8 @@ metadata:
   labels:
     app: example
     component: nginx
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: example-nginx
 spec:
   ports:
@@ -85,6 +164,8 @@ metadata:
     app: postgresql
     chart: postgresql-8.7.4
     heritage: Tiller
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
     release: postgresql
   name: postgresql
 spec:
@@ -107,6 +188,8 @@ metadata:
     app: postgresql
     chart: postgresql-8.7.4
     heritage: Tiller
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
     release: postgresql
   name: postgresql-headless
 spec:
@@ -128,6 +211,8 @@ metadata:
   labels:
     app: example
     component: nginx
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: example-nginx
 spec:
   replicas: 1
@@ -143,12 +228,21 @@ spec:
       labels:
         app: example
         component: nginx
+        kots.io/app-slug: qakots
+        kots.io/backup: velero
     spec:
       containers:
-      - envFrom:
+      - env:
+        - name: HAS_REGISTRY
+          value: '{ { repl HasLocalRegistry } }'
+        - name: IS_KURL
+          value: '{ { repl IsKurl } }'
+        - name: IS_AIRGAP
+          value: '{ { repl IsAirgap } }'
+        envFrom:
         - configMapRef:
             name: example-config
-        image: ttl.sh/test-123/nginx:latest
+        image: ttl.sh/test0222/nginx
         name: nginx
         resources:
           limits:
@@ -157,9 +251,9 @@ spec:
       - env:
         - name: HOSTNAME
           value: www.google.com
-        image: ttl.sh/test-123/qa-kots:alpine-3.5
+        image: ttl.sh/test0222/qa-kots:alpine-3.5
         name: ping
-      - image: ttl.sh/test-123/redis:5.0.7
+      - image: ttl.sh/test0222/redis:5.0.7
         name: redis
         volumeMounts:
         - mountPath: /dummydata
@@ -174,7 +268,7 @@ spec:
         - -c
         - until nslookup example-mysql; do echo waiting for example-mysql; sleep 2;
           done;
-        image: ttl.sh/test-123/dnsutils:14.04
+        image: ttl.sh/test0222/dnsutils:14.04
         name: nslookup
       volumes:
       - emptyDir: {}
@@ -191,6 +285,8 @@ metadata:
   labels:
     app: example
     component: mysql
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: example-mysql
 spec:
   replicas: 1
@@ -207,24 +303,26 @@ spec:
       labels:
         app: example
         component: mysql
+        kots.io/app-slug: qakots
+        kots.io/backup: velero
     spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: DCeXZkrufi_WqTzqG4Ut8qRqGqGQvrlmAGwHHOxz
+          value: cyJnEz_gf_EdKLV64VadLXCVorMgQSyVoLJeNQHY
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
           value: "5"
         - name: DUMB_ENV_NAME_2
-          value: test1
+          value: test-1
         - name: DUMB_ENV_NAME_3
           value: "7"
         - name: DUMB_ENV_NAME_4
           value: "9"
         - name: DUMB_ENV_NAME_5
-          value: "12"
-        image: ttl.sh/test-123/qa-mysql:5.6
+          value: "13"
+        image: ttl.sh/test0222/qa-mysql:5.6
         name: qa-mysql
         ports:
         - containerPort: 3306
@@ -242,7 +340,7 @@ spec:
         - rm
         - -fr
         - /var/lib/mysql/lost+found
-        image: ttl.sh/test-123/busybox:1.25.0
+        image: ttl.sh/test0222/busybox:1.25.0
         imagePullPolicy: IfNotPresent
         name: remove-lost-found
         volumeMounts:
@@ -273,6 +371,8 @@ metadata:
     app: postgresql
     chart: postgresql-8.7.4
     heritage: Tiller
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
     release: postgresql
   name: postgresql-postgresql
 spec:
@@ -295,6 +395,8 @@ spec:
         app: postgresql
         chart: postgresql-8.7.4
         heritage: Tiller
+        kots.io/app-slug: qakots
+        kots.io/backup: velero
         release: postgresql
         role: master
       name: postgresql
@@ -320,7 +422,7 @@ spec:
           value: dbname
         - name: POSTGRESQL_ENABLE_LDAP
           value: "no"
-        image: ttl.sh/test-123/postgresql:11.7.0-debian-10-r71
+        image: ttl.sh/test0222/postgresql:11.7.0-debian-10-r71
         imagePullPolicy: IfNotPresent
         livenessProbe:
           exec:
@@ -358,6 +460,8 @@ spec:
         securityContext:
           runAsUser: 1001
         volumeMounts:
+        - mountPath: /docker-entrypoint-initdb.d/
+          name: custom-init-scripts
         - mountPath: /dev/shm
           name: dshm
         - mountPath: /bitnami/postgresql
@@ -370,6 +474,9 @@ spec:
       securityContext:
         fsGroup: 1001
       volumes:
+      - configMap:
+          name: postgresql-init-scripts
+        name: custom-init-scripts
       - emptyDir:
           medium: Memory
           sizeLimit: 1Gi
@@ -395,29 +502,39 @@ kind: CronJob
 metadata:
   annotations:
     kots.io/app-slug: qakots
+  labels:
+    exclude-from-backup: yes-please
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: hello
 spec:
   jobTemplate:
     metadata:
       annotations:
         kots.io/app-slug: qakots
+      labels:
+        kots.io/app-slug: qakots
+        kots.io/backup: velero
     spec:
       template:
         metadata:
           annotations:
             kots.io/app-slug: qakots
+          labels:
+            kots.io/app-slug: qakots
+            kots.io/backup: velero
         spec:
           containers:
           - args:
             - /bin/sh
             - -c
             - date; echo Hello
-            image: ttl.sh/test-123/qa-kots:busybox-1.25.0
+            image: ttl.sh/test0222/qa-kots:busybox-1.25.0
             name: hello
           imagePullSecrets:
           - name: kotsadm-replicated-registry
           restartPolicy: OnFailure
-  schedule: '*/1 * * * *'
+  schedule: '* */1 * * *'
 ---
 apiVersion: batch/v1
 kind: Job
@@ -427,7 +544,9 @@ metadata:
   labels:
     app: example
     component: job-2
-  name: job-2-1u4o7z
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
+  name: job-2-mgt454
 spec:
   backoffLimit: 1
   completions: 1
@@ -439,13 +558,15 @@ spec:
       labels:
         app: example
         component: job-2
+        kots.io/app-slug: qakots
+        kots.io/backup: velero
     spec:
       containers:
       - command:
         - sh
         - -c
         - cat /etc/os-release
-        image: ttl.sh/test-123/alpine-curl:latest
+        image: ttl.sh/test0222/alpine-curl
         name: curl
       imagePullSecrets:
       - name: kotsadm-replicated-registry
@@ -456,6 +577,9 @@ kind: PersistentVolumeClaim
 metadata:
   annotations:
     kots.io/app-slug: qakots
+  labels:
+    kots.io/app-slug: qakots
+    kots.io/backup: velero
   name: dummydata
 spec:
   accessModes:
@@ -463,31 +587,3 @@ spec:
   resources:
     requests:
       storage: 1Gi
----
-apiVersion: v1
-kind: Pod
-metadata:
-  annotations:
-    backup.velero.io/backup-volumes: redis-storage-2
-    helm.sh/hook: test-success
-    kots.io/app-slug: qakots
-  labels:
-    app: redis-ha
-    chart: redis-ha-3.8.0
-    heritage: Tiller
-    release: replicated-deployment
-  name: replicated-deployment-redis-ha-service-test
-  namespace: lonesomepod
-spec:
-  containers:
-  - image: ttl.sh/test-123/redis:5.0.7
-    name: replicated-deployment-service-test
-    volumeMounts:
-    - mountPath: /data/redis
-      name: redis-storage-2
-  imagePullSecrets:
-  - name: kotsadm-replicated-registry
-  restartPolicy: Never
-  volumes:
-  - emptyDir: {}
-    name: redis-storage-2
