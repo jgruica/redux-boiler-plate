@@ -53,10 +53,10 @@ apiVersion: v1
 data:
   ENV_VAR_1: fake
   ENV_VAR_2: fakerr
-  RO_PASSWORD: K__Q_KkVvm5BgmzJIKrKVbpLVWPBP_bmycKt9XNa
-  RO_PASSWORD_D: JjQdTXldO23sjyGWJqdwabuefWOedB5ADjWfGZc2
-  RW_PASSWORD: wLnd3aE7yU1V8_dbK2iNcVDq_L9mBqooTmGGmmq8
-  RW_PASSWORD_D: dAI7RyxCprca36hNiOkeEWLiSWsUwa3bKL4nbTa4
+  RO_PASSWORD: 2sL1LZxTy0a5Vm3i5LjLiidtwwOCfgQUDlveVJh9
+  RO_PASSWORD_D: an8uKMD52jHxtLZS7WFsw9WF82bj1YQbxuIPRxYO
+  RW_PASSWORD: 36ym6Sc5weFkw3SO5mo3_gKTj2zRxsP5qqDyh2ic
+  RW_PASSWORD_D: lbaj3BkvhlOzn7AG8umt9GuOqGkDfW6JvjMJFYK7
 kind: ConfigMap
 metadata:
   annotations:
@@ -96,7 +96,7 @@ metadata:
     kots.io/app-slug: qakots
     kots.io/backup: velero
   name: kotsadm-replicated-registry
-  namespace: qakots
+  namespace: default
 type: kubernetes.io/dockerconfigjson
 ---
 apiVersion: v1
@@ -311,7 +311,7 @@ spec:
       containers:
       - env:
         - name: MYSQL_ROOT_PASSWORD
-          value: BwnGRPrJxu97YtoBT2YEo3dVmL11KfqUmPcRmOXd
+          value: khANsdFKlkOvfDsyaK_fELERRUPCGtnI_TXjqHzb
         - name: MYSQL_ROOT_HOST
           value: '%'
         - name: DUMB_ENV_NAME
@@ -549,7 +549,7 @@ metadata:
     component: job
     kots.io/app-slug: qakots
     kots.io/backup: velero
-  name: job-c7xxqf
+  name: job-wiglz1
 spec:
   backoffLimit: 1
   completions: 1
